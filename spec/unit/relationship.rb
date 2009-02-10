@@ -147,3 +147,96 @@ describe Puppet::Relationship, " when matching edges with a non-standard event" 
         @edge.should be_match(:random)
     end
 end
+
+describe Puppet::Relationship, "when converting to json" do
+    confine "Missing 'json' library" => Puppet.features.json?
+
+    before do
+        @edge = Puppet::Relationship.new(:a, :b, :event => :random, :callback => :whatever)
+    end
+
+    def json_output_should
+        @edge.class.expects(:json_create).with { |hash| yield hash }
+    end
+
+    # LAK:NOTE For all of these tests, we convert back to the edge so we can
+    # trap the actual data structure then.
+    it "should set the 'json_class' to Puppet::Relationship" do
+        json_output_should { |hash| hash['json_class'] == "Puppet::Relationship" }
+
+        JSON.parse @edge.to_json
+    end
+
+    it "should store the stringified source as the source in the data" do
+        json_output_should { |hash| hash['data']['source'] == "a" }
+
+        JSON.parse @edge.to_json
+    end
+
+    it "should store the stringified target as the target in the data" do
+        json_output_should { |hash| hash['data']['target'] == "b" }
+
+        JSON.parse @edge.to_json
+    end
+
+    it "should store the jsonified label as the third item in the array" do
+        json_output_should { |hash| JSON.parse(hash['data']['label']) == {"event" => "random", "callback" => "whatever"} }
+
+        JSON.parse @edge.to_json
+    end
+
+    it "should set a label when neither the event nor callback are set" do
+        @edge.label = {}
+
+        json_output_should { |hash| hash['data']['label'].nil? }
+
+        JSON.parse @edge.to_json
+    end
+end
+
+describe Puppet::Relationship, "when converting from json" do
+    confine "Missing 'json' library" => Puppet.features.json?
+
+    before do
+        @label = {
+            "event" => "random",
+            "callback" => "whatever"
+        }
+        @data = {
+            "source" => "mysource",
+            "target" => "mytarget",
+            "label" => @label
+        }
+        @json = {
+            "json_class" => "Puppet::Relationship",
+            "data" => @data
+        }
+    end
+
+    def json_result_should
+        Puppet::Relationship.expects(:new).with { |*args| yield args }
+    end
+
+    # LAK:NOTE For all of these tests, we convert back to the edge so we can
+    # trap the actual data structure then.
+    it "should pass the source in as the first argument" do
+        json_result_should { |args| args[0] == "mysource" }
+        JSON.parse @json.to_json
+    end
+
+    it "should pass the target in as the second argument" do
+        json_result_should { |args| args[1] == "mytarget" }
+        JSON.parse @json.to_json
+    end
+
+    it "should pass the label in as a hash for the third argument" do
+        json_result_should { |args| args[2] == @label }
+        JSON.parse @json.to_json
+    end
+
+    it "should pass an empty hash as the label when no label is available" do
+        @data.delete("label")
+        json_result_should { |args| args[2] == {} }
+        JSON.parse @json.to_json
+    end
+end

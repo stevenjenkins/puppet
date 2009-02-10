@@ -62,8 +62,32 @@ class Puppet::Relationship
         "%s => %s" % [source, target]
     end
 
+    def self.json_create(json)
+        data = json["data"]
+        source = data["source"]
+        target = data["target"]
+        label = data["label"] || {}
+
+        new(source, target, label)
+    end
+
+    def to_json(*args)
+        data = {
+            'source' => source.to_s,
+            'target' => target.to_s
+        }
+
+        if label != {}
+            data['label'] = label.to_json(*args)
+        end
+
+        {
+            'json_class' => "Puppet::Relationship",
+            'data' => data
+        }.to_json(*args)
+    end
+
     def to_s
         ref
     end
 end
-
