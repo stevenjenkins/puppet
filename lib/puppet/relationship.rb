@@ -35,7 +35,8 @@ class Puppet::Relationship
             unless label.is_a?(Hash)
                 raise ArgumentError, "Relationship labels must be a hash"
             end
-        
+            label = label.inject({}) { |hash, ary| hash[ary[0].to_sym] = ary[1]; hash }
+
             if label[:event] and label[:event] != :NONE and ! label[:callback]
                 raise ArgumentError, "You must pass a callback for non-NONE events"
             end
@@ -78,7 +79,7 @@ class Puppet::Relationship
         }
 
         if label != {}
-            data['label'] = label.to_json(*args)
+            data['label'] = label
         end
 
         {

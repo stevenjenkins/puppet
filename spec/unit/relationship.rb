@@ -75,6 +75,16 @@ describe Puppet::Relationship, " when interpreting the label" do
         @edge = Puppet::Relationship.new(:a, :b, :callback => :testing)
         @edge.callback.should == :testing
     end
+
+    it "should accept events specified as strings" do
+        @edge = Puppet::Relationship.new(:a, :b, "event" => :NONE)
+        @edge.event.should == :NONE
+    end
+
+    it "should accept callbacks specified as strings" do
+        @edge = Puppet::Relationship.new(:a, :b, "callback" => :foo)
+        @edge.callback.should == :foo
+    end
 end
 
 describe Puppet::Relationship, " when matching edges with no specified event" do
@@ -180,7 +190,7 @@ describe Puppet::Relationship, "when converting to json" do
     end
 
     it "should store the jsonified label as the third item in the array" do
-        json_output_should { |hash| JSON.parse(hash['data']['label']) == {"event" => "random", "callback" => "whatever"} }
+        json_output_should { |hash| hash['data']['label'] == {"event" => "random", "callback" => "whatever"} }
 
         JSON.parse @edge.to_json
     end

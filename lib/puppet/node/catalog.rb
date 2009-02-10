@@ -403,6 +403,56 @@ class Puppet::Node::Catalog < Puppet::PGraph
         @resource_table.keys
     end
 
+    def self.json_create(json)
+        data = json['data']
+        result = new(data['name'])
+
+        if tags = data['tags'] 
+            result.tag(*tags)
+        end
+
+        if version = data['version'] 
+            result.version = version
+        end
+
+        if resources = data['resources']
+            resources.each do |res|
+                result.add_resource(res)
+            end
+        end
+
+        if edges = data['edges']
+            edges.each do |edge|
+                unless source = result.resource(edge.source)
+                    raise ArgumentError, "Could not convert from json: Could not find relationship source '%s'" % source
+                end
+                edge.source = source
+
+                unless target = result.resource(edge.target)
+                    raise ArgumentError, "Could not convert from json: Could not find relationship target '%s'" % target
+                end
+                edge.target = target
+
+                result.add_edge(edge)
+            end
+        end
+
+        result
+    end
+
+    def to_json
+        {
+            'json_class' => 'Puppet::Node::Catalog',
+            'data' => {
+                'tags' => tags,
+                'name' => name,
+                'version' => version,
+                'resources' => vertices.to_json,
+                'edges' => edges.to_json
+            }
+        }.to_json
+    end
+
     # Convert our catalog into a RAL catalog.
     def to_ral
         to_catalog :to_type

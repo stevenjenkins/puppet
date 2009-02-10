@@ -862,3 +862,162 @@ describe Puppet::Node::Catalog, " when converting from yaml" do
         @newcatalog.edge?("one", "two").should be_true
     end
 end
+
+describe Puppet::Node::Catalog, "when converting to json" do
+    confine "Missing 'json' library" => Puppet.features.json?
+
+    before do
+        @catalog = Puppet::Node::Catalog.new("myhost")
+    end
+
+    def json_output_should
+        @catalog.class.expects(:json_create).with { |hash| yield hash }
+    end
+
+    # LAK:NOTE For all of these tests, we convert back to the resource so we can
+    # trap the actual data structure then.
+    it "should set its json_class to 'Puppet::Node::Catalog'" do
+        json_output_should { |hash| hash['json_class'] == "Puppet::Node::Catalog" }
+
+        JSON.parse @catalog.to_json
+    end
+
+    it "should set its data as a hash" do
+        json_output_should { |hash| hash['data'].is_a?(Hash) }
+        JSON.parse @catalog.to_json
+    end
+
+    [:name, :version, :tags].each do |param|
+        it "should set its #{param} to the #{param} of the resource" do
+            @catalog.send(param.to_s + "=", "testing") unless @catalog.send(param)
+
+            json_output_should { |hash| hash['data'][param.to_s] == @catalog.send(param) }
+            JSON.parse @catalog.to_json
+        end
+    end
+
+    it "should convert its resources to a JSON-encoded array and store it as the 'resources' data" do
+        one = stub 'one', :to_json => '"one_resource"', :ref => "Foo[one]"
+        two = stub 'two', :to_json => '"two_resource"', :ref => "Foo[two]"
+
+        @catalog.add_resource(one)
+        @catalog.add_resource(two)
+
+        # TODO this should really guarantee sort order
+        json_output_should { |hash| JSON.parse(hash['data']['resources']).sort == ["one_resource", "two_resource"].sort }
+        JSON.parse @catalog.to_json
+    end
+
+    it "should convert its edges to a JSON-encoded array and store it as the 'edges' data" do
+        one = stub 'one', :to_json => '"one_resource"', :ref => 'Foo[one]'
+        two = stub 'two', :to_json => '"two_resource"', :ref => 'Foo[two]'
+        three = stub 'three', :to_json => '"three_resource"', :ref => 'Foo[three]'
+
+        @catalog.add_edge(one, two)
+        @catalog.add_edge(two, three)
+
+        @catalog.edge(one, two).expects(:to_json).returns '"one_two_json"'
+        @catalog.edge(two, three).expects(:to_json).returns '"two_three_json"'
+
+        json_output_should { |hash| JSON.parse(hash['data']['edges']).sort == %w{one_two_json two_three_json}.sort }
+        JSON.parse @catalog.to_json
+    end
+end
+
+describe Puppet::Node::Catalog, "when converting from json" do
+    confine "Missing 'json' library" => Puppet.features.json?
+
+    def json_result_should
+        Puppet::Node::Catalog.expects(:new).with { |hash| yield hash }
+    end
+
+    before do
+        @data = {
+            'name' => "myhost"
+        }
+        @json = {
+            'json_class' => 'Puppet::Node::Catalog',
+            'data' => @data
+        }
+
+        @catalog = Puppet::Node::Catalog.new("myhost")
+        Puppet::Node::Catalog.stubs(:new).returns @catalog
+    end
+
+    it "should create it with the provided name" do
+        Puppet::Node::Catalog.expects(:new).with('myhost').returns @catalog
+        JSON.parse @json.to_json
+    end
+
+    it "should set the provided version on the catalog if one is set" do
+        @data['version'] = 50
+        @catalog.expects(:version=).with(@data['version'])
+
+        JSON.parse @json.to_json
+    end
+
+    it "should set any provided tags on the catalog" do
+        @data['tags'] = %w{one two}
+        @catalog.expects(:tag).with("one", "two")
+
+        JSON.parse @json.to_json
+    end
+
+    it 'should convert the resources list into resources and add each of them' do
+        @data['resources'] = %w{one_resource two_resource}
+
+        @catalog.expects(:add_resource).with("one_resource")
+        @catalog.expects(:add_resource).with("two_resource")
+
+        JSON.parse @json.to_json
+    end
+
+    it 'should convert the resources list into edges and add each of them' do
+        one = Puppet::Relationship.new("osource", "otarget", :event => "one", :callback => "refresh")
+        two = Puppet::Relationship.new("tsource", "ttarget", :event => "two", :callback => "refresh")
+
+        @data['edges'] = [one, two]
+
+        @catalog.stubs(:resource).returns("eh")
+
+        @catalog.expects(:add_edge).with { |edge| edge.event == "one" }
+        @catalog.expects(:add_edge).with { |edge| edge.event == "two" }
+
+        JSON.parse @json.to_json
+    end
+
+    it "should set the source and target for each edge to the actual resource" do
+        edge = Puppet::Relationship.new("source", "target")
+
+        @data['edges'] = [edge]
+
+        @catalog.expects(:resource).with("source").returns("source_resource")
+        @catalog.expects(:resource).with("target").returns("target_resource")
+
+        @catalog.expects(:add_edge).with { |edge| edge.source == "source_resource" and edge.target == "target_resource" }
+
+        JSON.parse @json.to_json
+    end
+
+    it "should fail if the source resource cannot be found" do
+        edge = Puppet::Relationship.new("source", "target")
+
+        @data['edges'] = [edge]
+
+        @catalog.expects(:resource).with("source").returns(nil)
+        @catalog.stubs(:resource).with("target").returns("target_resource")
+
+        lambda { JSON.parse @json.to_json }.should raise_error(ArgumentError)
+    end
+
+    it "should fail if the target resource cannot be found" do
+        edge = Puppet::Relationship.new("source", "target")
+
+        @data['edges'] = [edge]
+
+        @catalog.stubs(:resource).with("source").returns("source_resource")
+        @catalog.expects(:resource).with("target").returns(nil)
+
+        lambda { JSON.parse @json.to_json }.should raise_error(ArgumentError)
+    end
+end
