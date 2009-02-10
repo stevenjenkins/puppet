@@ -333,4 +333,118 @@ describe Puppet::Parser::Resource do
 
 
     end
+
+    describe "when converting to json" do
+        confine "Missing 'json' library" => Puppet.features.json?
+
+        before do
+            @resource = Puppet::Parser::Resource.new(:type => "file", :title => "yay", :scope => mock('scope'), :source => mock('source'))
+        end
+
+        def json_output_should
+            @resource.class.expects(:json_create).with { |hash| yield hash }
+        end
+
+        # LAK:NOTE For all of these tests, we convert back to the resource so we can
+        # trap the actual data structure then.
+        it "should set its json_class to 'Puppet::Parser::Resource'" do
+            json_output_should { |hash| hash['json_class'] == "Puppet::Parser::Resource" }
+
+            JSON.parse @resource.to_json
+        end
+
+        it "should set its data as a hash" do
+            json_output_should { |hash| hash['data'].is_a?(Hash) }
+            JSON.parse @resource.to_json
+        end
+
+        [:title, :type, :tags, :line, :file].each do |param|
+            it "should set its #{param} to the #{param} of the resource" do
+                @resource.send(param.to_s + "=", "testing") unless @resource.send(param)
+
+                json_output_should { |hash| hash['data'][param.to_s] == @resource.send(param) }
+                JSON.parse @resource.to_json
+            end
+        end
+
+        it "should set all of its parameters as the 'parameters' entry" do
+            @resource.set_parameter(:foo, ["bar", "eh"])
+            @resource.set_parameter(:fee, ["baz"])
+
+            json_output_should { |hash| hash['data']['parameters'] == {"foo" => ["bar", "eh"], "fee" => ["baz"] } }
+            JSON.parse @resource.to_json
+        end
+
+        it "should set all parameter values as arrays" do
+            @resource.set_parameter(:foo, "bar")
+
+            json_output_should { |hash| hash['data']['parameters']['foo'] == ["bar"] }
+            JSON.parse @resource.to_json
+        end
+    end
+
+    describe "when converting from json" do
+        confine "Missing 'json' library" => Puppet.features.json?
+
+        def json_result_should
+            Puppet::Parser::Resource.expects(:new).with { |hash| yield hash }
+        end
+
+        before do
+            @data = {
+                'type' => "file",
+                'title' => "yay",
+            }
+            @json = {
+                'json_class' => 'Puppet::Parser::Resource',
+                'data' => @data
+            }
+        end
+
+        [:title, :type, :tags, :line, :file].each do |param|
+            param = param.to_s
+            it "should set its #{param} to the provided #{param}" do
+                @data[param] ||= "testing"
+
+                json_result_should { |hash| hash[param] == @data[param] }
+                JSON.parse @json.to_json
+            end
+        end
+
+        it "should use a bogus temporary 'scope' value" do
+            json_result_should { |hash| hash["scope"].is_a?(Puppet::Parser::Scope) }
+            JSON.parse @json.to_json
+        end
+
+        it "should fail if no title is provided" do
+            @data.delete('title')
+            lambda { JSON.parse @json.to_json }.should raise_error(ArgumentError)
+        end
+
+        it "should fail if no type is provided" do
+            @data.delete('type')
+            lambda { JSON.parse @json.to_json }.should raise_error(ArgumentError)
+        end
+
+        it "should set each of the provided parameters" do
+            resource = mock 'resource'
+            Puppet::Parser::Resource.expects(:new).returns resource
+
+            @data['parameters'] = {'foo' => %w{one two}, 'fee' => %w{three four}}
+            resource.expects(:set_parameter).with("foo", %w{one two})
+            resource.expects(:set_parameter).with("fee", %w{three four})
+
+            JSON.parse @json.to_json
+        end
+
+        it "should convert single-value array parameters to normal values" do
+            resource = mock 'resource'
+            Puppet::Parser::Resource.expects(:new).returns resource
+
+            @data['parameters'] = {'foo' => %w{one}}
+            resource.expects(:set_parameter).with("foo", "one")
+
+            JSON.parse @json.to_json
+        end
+    end
 end

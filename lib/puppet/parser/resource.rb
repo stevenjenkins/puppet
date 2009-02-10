@@ -258,6 +258,46 @@ class Puppet::Parser::Resource
         end
     end
 
+    def self.json_create(json)
+        if params = json['data']['parameters']
+            json['data'].delete('parameters')
+        end
+
+        # Current Resource model requires a scope, but we don't need it for basic json testing.
+        json['data']['scope'] = Puppet::Parser::Scope.new
+
+        resource = new(json['data'])
+        if params
+            params.each do |param, value|
+                value = value[0] if value.is_a?(Array) and value.length == 1
+                resource.set_parameter(param, value)
+            end
+        end
+
+        return resource
+    end
+
+    def to_json(*args)
+        raise "Cannot convert to JSON unless the 'json' library is installed" unless Puppet.features.json?
+
+        data = [:file, :line, :type, :title, :tags].inject({}) do |hash, param|
+            hash[param.to_s] = self.send(param)
+            hash
+        end
+
+        data["parameters"] = self.to_hash.inject({}) do |hash, ary|
+            param, value = ary
+            value = [value] unless value.is_a?(Array)
+            hash[param] = value
+            hash
+        end
+
+        {
+            'json_class' => self.class.name,
+            'data' => data
+        }.to_json(*args)
+    end
+
     # Turn our parser resource into a Rails resource.  
     def to_rails(host)
         args = rails_args
