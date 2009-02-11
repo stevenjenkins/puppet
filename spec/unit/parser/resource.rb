@@ -71,6 +71,13 @@ describe Puppet::Parser::Resource do
         @resource.to_type.should == "yay"
     end
 
+    it "should allow setting of false values" do
+        @resource = mkresource
+
+        @resource.set_parameter("foo", false)
+        @resource["foo"].should be_false
+    end
+
     describe "when initializing" do
         before do
             @arguments = {:type => "resource", :title => "testing", :scope => stub('scope', :source => mock('source'))}

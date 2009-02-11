@@ -235,7 +235,7 @@ class Puppet::Parser::Resource
 
     # Define a parameter in our resource.
     def set_parameter(param, value = nil)
-        if value
+        if ! value.nil?
             param = Puppet::Parser::Resource::Param.new(
                 :name => param, :value => value, :source => self.source
             )
