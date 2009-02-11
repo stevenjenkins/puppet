@@ -904,7 +904,7 @@ describe Puppet::Node::Catalog, "when converting to json" do
         @catalog.add_resource(two)
 
         # TODO this should really guarantee sort order
-        json_output_should { |hash| JSON.parse(hash['data']['resources']).sort == ["one_resource", "two_resource"].sort }
+        json_output_should { |hash| hash['data']['resources'].sort == ["one_resource", "two_resource"].sort }
         JSON.parse @catalog.to_json
     end
 
@@ -919,7 +919,7 @@ describe Puppet::Node::Catalog, "when converting to json" do
         @catalog.edge(one, two).expects(:to_json).returns '"one_two_json"'
         @catalog.edge(two, three).expects(:to_json).returns '"two_three_json"'
 
-        json_output_should { |hash| JSON.parse(hash['data']['edges']).sort == %w{one_two_json two_three_json}.sort }
+        json_output_should { |hash| hash['data']['edges'].sort == %w{one_two_json two_three_json}.sort }
         JSON.parse @catalog.to_json
     end
 end

@@ -440,17 +440,17 @@ class Puppet::Node::Catalog < Puppet::PGraph
         result
     end
 
-    def to_json
+    def to_json(*args)
         {
             'json_class' => 'Puppet::Node::Catalog',
             'data' => {
                 'tags' => tags,
                 'name' => name,
                 'version' => version,
-                'resources' => vertices.to_json,
-                'edges' => edges.to_json
+                'resources' => vertices,
+                'edges' => edges
             }
-        }.to_json
+        }.to_json(*args)
     end
 
     # Convert our catalog into a RAL catalog.
