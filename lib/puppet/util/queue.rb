@@ -1,3 +1,9 @@
+
+require 'puppet/indirector'
+
+module Puppet
+module Util
+
 # Implements a message queue client type registry for use by the indirector facility.
 # Client modules for speaking a particular protocol (e.g. Stomp::Client for Stomp message
 # brokers, Memcached for Starling and Sparrow, etc.) register themselves with this module.
@@ -15,7 +21,7 @@
 # Another class/module may mix-in this module, and may then make use of the registered clients.
 #   class Queue::Fue
 #       # mix it in at the class object level rather than instance level
-#       extend ::Puppet::Indirector::Queue::Client
+#       extend ::Puppet::Util::Queue
 #
 #       # specify the default client type to use.
 #       self.queue_type_default = :special_magical_type
@@ -23,24 +29,21 @@
 #
 # +Queue::Fue+ instances can get a message queue client through the registry through the mixed-in method
 # +client+, which will return a class-wide singleton client instance, determined by +client_class+.
-module Puppet::Indirector::Queue::Client
-    attr_accessor :queue_client_types, :queue_type_default
+module Queue
+    attr_accessor :queue_type_default
 
-    @queue_client_types = {}
+    def self.reset
+        @queue_client_types = {}
+    end
 
-    # The class object for the client to be used, determined by queue configuration
-    # settings and known queue client types.
-    # Looked to the +:queue_client+ configuration entry in the running application for
-    # the default queue type to use, and fails over to +queue_type_default+ if the configuration
-    # information is not present.
-    def client_class
-        queue_type_to_class(::Puppet[:queue_client] || queue_type_default)
+    def self.queue_client_types
+        @queue_client_types ||= {}
     end
 
     # Given a queue type symbol, returns the associated +Class+ object.  If the queue type is unknown
     # (meaning it hasn't been registered with this module), an exception is thrown.
-    def queue_type_to_class(type)
-        class_obj = queue_client_types[:type]
+    def self.queue_type_to_class(type)
+        class_obj = queue_client_types[type]
         raise Puppet::Error, "Could not locate class for queue type %s" % type.to_s unless class_obj
         class_obj
     end
@@ -58,7 +61,7 @@ module Puppet::Indirector::Queue::Client
     # If the type is already registered, an exception is thrown.  No checking is performed of _klass_,
     # however; a given class could be registered any number of times, as long as the _type_ differs with
     # each registration.
-    def register_queue_type(klass, type)
+    def self.register_queue_type(klass, type = nil)
         type ||= queue_type_from_class(klass)
         raise Puppet::Error, "Queue type %s is already registered" % type.to_s if queue_client_types[type]
         queue_client_types[type] = klass
@@ -74,9 +77,18 @@ module Puppet::Indirector::Queue::Client
     # The implicit assumption here, consistent with other pieces of Puppet and +Puppet::Indirector+ in
     # particular, is that all your client modules live in the same namespace, such that reduction to
     # a flat namespace of symbols is reasonably safe.
-    def queue_type_from_class(klass)
+    def self.queue_type_from_class(klass)
         # convert last segment of classname from studly caps to lower case with underscores, and symbolize
-        klass.name.split('::').pop.sub(/^[A-Z]/, '\1'.downcase).gsub(/[A-Z]/) {|c| '_' + c.downcase }.intern
+        klass.name.split('::').pop.sub(/^[A-Z]/) {|c| c.downcase}.gsub(/[A-Z]/) {|c| '_' + c.downcase }.intern
+    end
+
+    # The class object for the client to be used, determined by queue configuration
+    # settings and known queue client types.
+    # Looked to the +:queue_client+ configuration entry in the running application for
+    # the default queue type to use, and fails over to +queue_type_default+ if the configuration
+    # information is not present.
+    def client_class
+        ::Puppet::Util::Queue.queue_type_to_class(::Puppet[:queue_client] || queue_type_default)
     end
 
     # Returns (instantiating as necessary) the singleton queue client instance, according to the
@@ -85,4 +97,6 @@ module Puppet::Indirector::Queue::Client
     def client
         @client ||= client_class.new
     end
+end
+end
 end
