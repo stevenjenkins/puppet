@@ -2,19 +2,22 @@
 require 'puppet/indirector'
 require 'puppet/util/instance_loader'
 
-# Implements a message queue client type registry for use by the indirector facility.
+# Implements a message queue client type plugin registry for use by the indirector facility.
 # Client modules for speaking a particular protocol (e.g. Stomp::Client for Stomp message
 # brokers, Memcached for Starling and Sparrow, etc.) register themselves with this module.
 # 
-# A given client class registers itself:
-#   class Puppet::Indirector::Queue:SpecialMagicalClient < Messaging::SpecialMagic
+# Client classes are expected to live under the Puppet::Util::Queue namespace and corresponding
+# directory; the attempted use of a client via its typename (see below) will cause Puppet::Util::Queue
+# to attempt to load the corresponding plugin if it is not yet loaded.  The client class registers itself
+# with Puppet::Util::Queue and should use the same type name as the autloader expects for the plugin file.
+#   class Puppet::Util::Queue::SpecialMagicalClient < Messaging::SpecialMagic
 #       ...
+#       Puppet::Util::Queue.register_queue_type_class(self)
 #   end
-#   Puppet::Indirector::Queue::Client.register_queue_type_class(Puppet::Indirector::Queue::SpecialMagicalClient)
 #
 # This module reduces the rightmost segment of the class name into a pretty symbol that will
 # serve as the queuing client's name.  Which means that the "SpecialMagicalClient" above will
-# be named _:special_magical_client_ within the registry.
+# be named <em>:special_magical_client</em> within the registry.
 #
 # Another class/module may mix-in this module, and may then make use of the registered clients.
 #   class Queue::Fue
@@ -25,8 +28,14 @@ require 'puppet/util/instance_loader'
 #       self.queue_type_default = :special_magical_type
 #   end
 #
-# +Queue::Fue+ instances can get a message queue client through the registry through the mixed-in method
+# Queue::Fue instances can get a message queue client through the registry through the mixed-in method
 # +client+, which will return a class-wide singleton client instance, determined by +client_class+.
+#
+# The client plugins are expected to implement an interface similar to that of Stomp::Client:
+# * <tt>new()</tt> should return a connected, ready-to-go client instance.  Note that no arguments are passed in.
+# * <tt>send(queue, message)</tt> should send the _message_ to the specified _queue_.
+# * <tt>subscribe(queue)</tt> _block_ subscribes to _queue_ and executes _block_ upon receiving a message.
+# * _queue_ names are simple names independent of the message broker or client library.  No "/queue/" prefixes like in Stomp::Client.
 module Puppet::Util::Queue
     extend Puppet::Util::InstanceLoader
     attr_accessor :queue_type_default
@@ -34,7 +43,7 @@ module Puppet::Util::Queue
 
     # Adds a new class/queue-type pair to the registry.  The _type_ argument is optional; if not provided,
     # _type_ defaults to a lowercased, underscored symbol programmatically derived from the rightmost
-    # namespace of _klass.name_.
+    # namespace of <em>klass.name</em>.
     #
     #   # register with default name +:you+
     #   register_queue_type(Foo::You)
@@ -66,8 +75,8 @@ module Puppet::Util::Queue
     #   queue_type_from_class(Foo::Too) -> :too
     #   queue_type_from_class(Foo::ForYouTwo) -> :for_you_too
     #
-    # The implicit assumption here, consistent with other pieces of Puppet and +Puppet::Indirector+ in
-    # particular, is that all your client modules live in the same namespace, such that reduction to
+    # The implicit assumption here, consistent with Puppet's approach to plugins in general,
+    # is that all your client modules live in the same namespace, such that reduction to
     # a flat namespace of symbols is reasonably safe.
     def self.queue_type_from_class(klass)
         # convert last segment of classname from studly caps to lower case with underscores, and symbolize
@@ -76,7 +85,7 @@ module Puppet::Util::Queue
 
     # The class object for the client to be used, determined by queue configuration
     # settings and known queue client types.
-    # Looked to the +:queue_client+ configuration entry in the running application for
+    # Looked to the <tt>:queue_client</tt> configuration entry in the running application for
     # the default queue type to use, and fails over to +queue_type_default+ if the configuration
     # information is not present.
     def client_class

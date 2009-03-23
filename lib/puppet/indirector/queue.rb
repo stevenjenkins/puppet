@@ -1,30 +1,22 @@
 require 'puppet/indirector/terminus'
 require 'puppet/util/queue'
-require 'puppet/util/queue/stomp'
 
-# Implements the +\:queue+ abstract indirector terminus type, for storing
+# Implements the <tt>:queue</tt> abstract indirector terminus type, for storing
 # model instances to a message queue, presumably for the purpose of out-of-process
 # handling of changes related to the model.
 #
 # Relies upon Puppet::Util::Queue for registry and client object management,
-# and specifies a default queue type of +:stomp+, appropriate for use with a variety of message brokers.
+# and specifies a default queue type of <tt>:stomp</tt>, appropriate for use with a variety of message brokers.
 #
 # It's up to the queue client type to instantiate itself correctly based on Puppet configuration information.
 # 
 # A single queue client is maintained for the abstract terminus, meaning that you can only use one type
 # of queue client, one message broker solution, etc., with the indirection mechanism.
 #
-# Per-indirection queues are assumed, based on the indirection name.  If the +:catalog+ indirection makes
-# use of this +:queue+ terminus, queue operations work against the "catalog" queue.  It is up to the queue
+# Per-indirection queues are assumed, based on the indirection name.  If the <tt>:catalog</tt> indirection makes
+# use of this <tt>:queue</tt> terminus, queue operations work against the "catalog" queue.  It is up to the queue
 # client library to handle queue creation as necessary (for a number of popular queuing solutions, queue
 # creation is automatic and not a concern).
-#
-# Ultimately, the client object against which this terminus operates is expected to implement an interface
-# similar to that of Stomp::Client:
-# * +new()+ should return a connected, ready-to-go client instance.  Note that no arguments are passed in.
-# * +send(queue, message)+ should send the _message_ to the specified _queue_.
-# * +subscribe(queue) _block_ subscribes to _queue_ and executes _block_ upon receiving a message.
-# * _queue_ names are simple names independent of the message broker or client library.  No "/queue/" prefixes like in +Stomp::Client+.
 class Puppet::Indirector::Queue < Puppet::Indirector::Terminus
     extend ::Puppet::Util::Queue
     self.queue_type_default = :stomp

@@ -1,12 +1,12 @@
 require 'puppet/util/queue'
 require 'stomp'
 
-# Implements the Ruby Stomp client as a queue type within the +Puppet::Indirector::Queue::Client+
-# registry, for use with the +:queue+ indirection terminus type.
+# Implements the Ruby Stomp client as a queue type within the Puppet::Indirector::Queue::Client
+# registry, for use with the <tt>:queue</tt> indirection terminus type.
 #
-# Looks to +Puppet[:queue_source]+ for the sole argument to the underlying +Stomp::Client+ constructor;
-# consequently, for this client to work, +Puppet[:queue_source]+ must use the +Stomp::Client+ URL-like
-# syntax for identifying the Stomp message broker: _login:pass@host.port_
+# Looks to <tt>Puppet[:queue_source]</tt> for the sole argument to the underlying Stomp::Client constructor;
+# consequently, for this client to work, <tt>Puppet[:queue_source]</tt> must use the Stomp::Client URL-like
+# syntax for identifying the Stomp message broker: <em>login:pass@host.port</em>
 class Puppet::Util::Queue::Stomp < Stomp::Client
     def initialize
         super( Puppet[:queue_source] )
