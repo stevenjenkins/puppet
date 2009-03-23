@@ -1,29 +1,37 @@
 #!/usr/bin/env ruby
 
 require File.dirname(__FILE__) + '/../../../spec_helper'
-require 'puppet/util/queue/stomp'
+require 'puppet/util/queue'
 
-class Stomp::Client
-    attr_accessor :queue_source
-
-    def send(q, m)
-        'To %s: %s' % [q, m]
-    end
-
-    def subscribe(q)
-        'subscribe: %s' % q
-    end
-
-    def initialize(s)
-        self.queue_source = s
-    end
-end
 
 def Puppet.[](*any)
     'faux_queue_source'
 end
 
-describe Puppet::Util::Queue::Stomp do
+describe Puppet::Util::Queue do
+    it 'should load :stomp client appropriately' do
+        Puppet::Util::Queue.queue_type_to_class(:stomp).name.should == 'Puppet::Util::Queue::Stomp'
+    end
+end
+
+describe 'Puppet::Util::Queue::Stomp' do
+    before :all do
+        class Stomp::Client
+            attr_accessor :queue_source
+
+            def send(q, m)
+                'To %s: %s' % [q, m]
+            end
+
+            def subscribe(q)
+                'subscribe: %s' % q
+            end
+
+            def initialize(s)
+                self.queue_source = s
+            end
+        end
+    end
 
     it 'should be registered with Puppet::Util::Queue as :stomp type' do
         Puppet::Util::Queue.queue_type_to_class(:stomp).should == Puppet::Util::Queue::Stomp

@@ -2,69 +2,28 @@
 
 require File.dirname(__FILE__) + '/../../spec_helper'
 require 'puppet/util/queue'
-
-class Foo
-    class Bar
-    end
-    class BarBah
-    end
-end
-class FooBar
-end
+require 'spec/mocks'
 
 describe Puppet::Util::Queue do
-    mod = Puppet::Util::Queue
-
-    before do
-        Puppet::Util::Queue.reset
-        @client = Object.new
-        @client.extend Puppet::Util::Queue
+    before :each do
+        @client_classes = { :default => Class.new, :setup => Class.new }
+        @class = Class.new do
+            extend Puppet::Util::Queue
+            self.queue_type_default = :default
+        end
+        Puppet::Util::Queue.stubs(:loaded_instance).with(:queue_clients, :default).returns(@client_classes[:default])
+        Puppet::Util::Queue.stubs(:loaded_instance).with(:queue_clients, :setup).returns(@client_classes[:setup])
     end
 
-    context 'when determining a type name from a class' do
-        it 'should handle a simple one-word class name' do
-            mod.queue_type_from_class(Foo).should == :foo
-        end
-
-        it 'should handle a simple two-word class name' do
-            mod.queue_type_from_class(FooBar).should == :foo_bar
-        end
-
-        it 'should handle a two-part class name with one terminating word' do
-            mod.queue_type_from_class(Foo::Bar).should == :bar
-        end
-
-        it 'should handle a two-part class name with two terminating words' do
-            mod.queue_type_from_class(Foo::BarBah).should == :bar_bah
-        end
+    it 'returns client class based on queue_type_default' do
+        Puppet.settings.stubs(:value).returns(nil)
+        @class.client_class.should == @client_classes[:default]
+        @class.client.class.should == @client_classes[:default]
     end
 
-    context 'when registering a queue client class' do
-        it 'uses the proper default name logic when type is unspecified' do
-            mod.register_queue_type(Foo::BarBah)
-            mod.queue_type_to_class(:bar_bah).should == Foo::BarBah
-        end
-
-        it 'uses an explicit type name when provided' do
-            mod.register_queue_type(Foo::BarBah, :aardvark)
-            mod.queue_type_to_class(:aardvark).should == Foo::BarBah
-        end
-
-        it 'throws an exception when type names conflict' do
-            mod.register_queue_type(Foo::Bar)
-            lambda { mod.register_queue_type(Foo::BarBah, :bar) }.should raise_error
-        end
-
-        it 'handle multiple, non-conflicting registrations' do
-            mod.register_queue_type(Foo::Bar)
-            mod.register_queue_type(Foo::BarBah)
-            mod.queue_type_to_class(:bar).should == Foo::Bar
-            mod.queue_type_to_class(:bar_bah).should == Foo::BarBah
-        end
-
-        it 'throws an exception when type name is unknown' do
-            lambda { mod.queue_type_to_class(:nope) }.should raise_error
-        end
+    it 'prefers settings variable for client class when specified' do
+        Puppet.settings.stubs(:value).with(:queue_client).returns(:setup)
+        @class.client_class.should == @client_classes[:setup]
+        @class.client.class.should == @client_classes[:setup]
     end
 end
-    

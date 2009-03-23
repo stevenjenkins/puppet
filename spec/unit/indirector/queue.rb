@@ -20,8 +20,6 @@ class Puppet::Indirector::Queue::TestClient
         stack.push(message)
         queue
     end
-
-    Puppet::Util::Queue.register_queue_type(self)
 end
 
 class FooExampleData
@@ -45,6 +43,7 @@ describe Puppet::Indirector::Queue do
 
         Puppet.settings.stubs(:value).returns("bogus setting data")
         Puppet.settings.stubs(:value).with(:queue_client).returns(:test_client)
+        Puppet::Util::Queue.stubs(:queue_type_to_class).with(:test_client).returns(Puppet::Indirector::Queue::TestClient)
 
         @request = stub 'request', :key => :me, :instance => @subject
     end

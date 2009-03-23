@@ -24,5 +24,5 @@ class Puppet::Util::Queue::Stomp < Stomp::Client
         '/queue/' + target
     end
 
-    Puppet::Util::Queue.register_queue_type(self)
+    Puppet::Util::Queue.register_queue_type(self, :stomp)
 end
