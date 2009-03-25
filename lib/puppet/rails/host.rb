@@ -2,6 +2,9 @@ require 'puppet/rails/resource'
 require 'puppet/rails/fact_name'
 require 'puppet/rails/source_file'
 require 'puppet/util/rails/collection_merger'
+require 'yaml'
+require 'rubygems'
+require 'stomp'
 
 # Puppet::TIME_DEBUG = true
 
@@ -56,8 +59,11 @@ class Puppet::Rails::Host < ActiveRecord::Base
             Puppet.notice("Handled resources in %0.2f seconds" % seconds) if defined?(Puppet::TIME_DEBUG)
 
             host.last_compile = Time.now
-
-            host.save
+	    #  convert to marshal 
+            c = Stomp::Client.open "stomp://localhost:61613"
+	    c.send "/queue/storeconfig", Marshal.dump(host)
+            c.close
+            # host.save
         end
 
         return host
@@ -149,7 +155,7 @@ class Puppet::Rails::Host < ActiveRecord::Base
 
     def update_connect_time
         self.last_connect = Time.now
-        save
+        # save
     end
 end
 
