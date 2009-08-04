@@ -38,4 +38,13 @@ end
 # We have JSON available
 # This is stupid - Rails breaks json compatibility if we load json before
 # rails, therefore we load rails and then json.  Dumb, mother-dumb.
-Puppet.features.add(:json, :libs => ["json"])
+Puppet.features.add(:json) do
+	begin
+		require 'json'
+	rescue LoadError => detail
+		return false
+	end
+
+	# Both of these should be defined if the require worked
+	(defined?(::JSON) and defined?(JSON::to_json))
+end
