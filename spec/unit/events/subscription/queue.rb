@@ -56,7 +56,7 @@ describe Puppet::Events::Subscription::Queue do
 
         it 'should pop the events off the stack along the way' do
             @sizes = []
-            @subscription.callback = Proc.new {|event| @size << @subscription.events.size}
+            @subscription.callback = Proc.new {|event| @sizes << @subscription.events.size}
             @subscription.process_events
             @sizes.should == (0..@events.size-1).to_a.reverse
         end
