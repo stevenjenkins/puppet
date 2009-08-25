@@ -146,7 +146,6 @@ describe Puppet::Events::Publisher do
 
                     def callback(e)
                         self.last_received = e
-                        puts "callback receiver is #{self.class}"
                         self.weakref = self.respond_to?(:weakref_alive?)
                     end
                 end
