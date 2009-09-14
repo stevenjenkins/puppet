@@ -5,6 +5,7 @@ require 'optparse'
 # * setting up options
 # * setting up logs
 # * choosing what to run
+# * representing execution status
 #
 # === Usage
 # The application is a Puppet::Application object that register itself in the list
@@ -86,12 +87,87 @@ require 'optparse'
 # to be run.
 # If it doesn't exist, it defaults to execute the +main+ command if defined.
 #
+# === Execution state
+# The class attributes/methods of Puppet::Application serve as a global place to set and query the execution
+# status of the application: stopping, restarting, etc.  The setting of the application status does not directly
+# aftect its running status; it's assumed that the various components within the application will consult these
+# settings appropriately and affect their own processing accordingly.  Control operations (signal handlers and
+# the like) should set the status appropriately to indicate to the overall system that it's the process of
+# stopping or restarting (or just running as usual).
+#
+# So, if something in your application needs to stop the process, for some reason, you might consider:
+#
+#  def stop_me!
+#      # indicate that we're stopping
+#      Puppet::Application.stop!
+#      # ...do stuff...
+#  end
+#
+# And, if you have some component that involves a long-running process, you might want to consider:
+#
+#  def my_long_process(giant_list_to_munge)
+#      giant_list_to_munge.collect do |member|
+#          # bail if we're stopping
+#          return if Puppet::Application.stop_requested?
+#          process_member(member)
+#      end
+#  end
 class Puppet::Application
     include Puppet::Util
 
     @@applications = {}
     class << self
         include Puppet::Util
+
+        attr_accessor :run_status
+
+        def clear!
+            self.run_status = nil
+        end
+
+        def stop!
+            self.run_status = :stop_requested
+        end
+
+        def restart!
+            self.run_status = :restart_requested
+        end
+
+        # Indicates that Puppet::Application.restart! has been invoked and components should
+        # do what is necessary to facilitate a restart.
+        def restart_requested?
+            :restart_requested == run_status
+        end
+
+        # Indicates that Puppet::Application.stop! has been invoked and components should do what is necessary
+        # for a clean stop.
+        def stop_requested?
+            :stop_requested == run_status
+        end
+
+        # Indicates that one of stop! or start! was invoked on Puppet::Application, and some kind of process
+        # shutdown/short-circuit may be necessary.
+        def interrupted?
+            [:restart_requested, :stop_requested].include? run_status
+        end
+
+        # Indicates that Puppet::Application believes that it's in usual running mode (no stop/restart request
+        # currently active).
+        def clear?
+            run_status.nil?
+        end
+
+        # Only executes the given block if the run status of Puppet::Application is clear (no restarts, stops,
+        # etc. requested).
+        # Upon block execution, checks the run status again; if a restart has been requested during the block's
+        # execution, then controlled_run will send a new HUP signal to the current process.
+        # Thus, long-running background processes can potentially finish their work before a restart.
+        def controlled_run(&block)
+            return unless clear?
+            result = block.call
+            Process.kill(:HUP, $$) if restart_requested?
+            result
+        end
     end
 
     attr_reader :options, :opt_parser

@@ -2,6 +2,7 @@
 # and performs them
 
 require 'puppet'
+require 'puppet/application'
 
 module Puppet
 class Transaction
@@ -18,6 +19,11 @@ class Transaction
     attr_reader :events
 
     include Puppet::Util
+
+    # Wraps application run state check to flag need to interrupt processing
+    def stop_processing?
+        Puppet::Application.stop_requested?
+    end
 
     # Add some additional times for reporting
     def addtimes(hash)
@@ -285,6 +291,7 @@ class Transaction
 
         begin
             allevents = @sorted_resources.collect { |resource|
+                next if stop_processing?
                 if resource.is_a?(Puppet::Type::Component)
                     Puppet.warning "Somehow left a component in the relationship graph"
                     next

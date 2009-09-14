@@ -36,6 +36,133 @@ describe Puppet::Application do
         @app.get_command.should == :main
     end
 
+    describe 'when invoking clear!' do
+        before :each do
+            Puppet::Application.run_status = :stop_requested
+            Puppet::Application.clear!
+        end
+
+        it 'should have nil run_status' do
+            Puppet::Application.run_status.should be_nil
+        end
+
+        it 'should return false for restart_requested?' do
+            Puppet::Application.restart_requested?.should be_false
+        end
+
+        it 'should return false for stop_requested?' do
+            Puppet::Application.stop_requested?.should be_false
+        end
+
+        it 'should return false for interrupted?' do
+            Puppet::Application.interrupted?.should be_false
+        end
+
+        it 'should return true for clear?' do
+            Puppet::Application.clear?.should be_true
+        end
+    end
+
+    describe 'after invoking stop!' do
+        before :each do
+            Puppet::Application.run_status = nil
+            Puppet::Application.stop!
+        end
+
+        after :each do
+            Puppet::Application.run_status = nil
+        end
+
+        it 'should have run_status of :stop_requested' do
+            Puppet::Application.run_status.should == :stop_requested
+        end
+
+        it 'should return true for stop_requested?' do
+            Puppet::Application.stop_requested?.should be_true
+        end
+
+        it 'should return false for restart_requested?' do
+            Puppet::Application.restart_requested?.should be_false
+        end
+
+        it 'should return true for interrupted?' do
+            Puppet::Application.interrupted?.should be_true
+        end
+
+        it 'should return false for clear?' do
+            Puppet::Application.clear?.should be_false
+        end
+    end
+
+    describe 'when invoking restart!' do
+        before :each do
+            Puppet::Application.run_status = nil
+            Puppet::Application.restart!
+        end
+
+        after :each do
+            Puppet::Application.run_status = nil
+        end
+
+        it 'should have run_status of :restart_requested' do
+            Puppet::Application.run_status.should == :restart_requested
+        end
+
+        it 'should return true for restart_requested?' do
+            Puppet::Application.restart_requested?.should be_true
+        end
+
+        it 'should return false for stop_requested?' do
+            Puppet::Application.stop_requested?.should be_false
+        end
+
+        it 'should return true for interrupted?' do
+            Puppet::Application.interrupted?.should be_true
+        end
+
+        it 'should return false for clear?' do
+            Puppet::Application.clear?.should be_false
+        end
+    end
+
+    describe 'when performing a controlled_run' do
+        it 'should not execute block if not :clear?' do
+            Puppet::Application.run_status = :stop_requested
+            target = mock 'target'
+            target.expects(:some_method).never
+            Puppet::Application.controlled_run do
+                target.some_method
+            end
+        end
+
+        it 'should execute block if :clear?' do
+            Puppet::Application.run_status = nil
+            target = mock 'target'
+            target.expects(:some_method).once
+            Puppet::Application.controlled_run do
+                target.some_method
+            end
+        end
+
+        it 'should signal process with HUP after block if restart requested during block execution' do
+            Puppet::Application.run_status = nil
+            target = mock 'target'
+            target.expects(:some_method).once
+            old_handler = trap('HUP') { target.some_method }
+            begin
+                Puppet::Application.controlled_run do
+                    Puppet::Application.run_status = :restart_requested
+                end
+            ensure
+                trap('HUP', old_handler)
+            end
+        end
+
+        after :each do
+            Puppet::Application.run_status = nil
+        end
+    end
+
     describe "when parsing command-line options" do
 
         before :each do
